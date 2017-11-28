@@ -24,7 +24,7 @@ impl NoDelay for TcpStream {
 }
 
 #[cfg(feature="tls")]
-mod encryption {
+pub mod encryption {
     extern crate native_tls;
     extern crate tokio_tls;
 
@@ -68,7 +68,7 @@ mod encryption {
 }
 
 #[cfg(not(feature="tls"))]
-mod encryption {
+pub mod encryption {
     use super::tokio_core::net::TcpStream;
 
     use futures::{future, Future};
@@ -88,7 +88,7 @@ mod encryption {
     }
 }
 
-use self::encryption::{AutoStream, wrap_stream};
+pub use self::encryption::{AutoStream, wrap_stream};
 
 /// Connect to a given URL.
 pub fn connect_async<R>(request: R, handle: Remote)
@@ -117,4 +117,32 @@ where
                         .map_err(|e| e.into())
                 })
                 .and_then(move |stream| client_async(request, stream)))
+}
+
+/// Connect to a given URL.
+pub fn copy_connect_async<R>(tokio_stream: TcpStream, request: R, handle: Remote)
+    -> Box<Future<Item=(WebSocketStream<AutoStream>, Response), Error=Error>>
+where
+    R: Into<Request<'static>>
+{
+    let request: Request = request.into();
+
+    // Make sure we check domain and mode first. URL must be valid.
+    let mode = match url_mode(&request.url) {
+        Ok(m) => m,
+        Err(e) => return Box::new(future::err(e.into())),
+    };
+    let domain = match request.url.host_str() {
+        Some(d) => d.to_string(),
+        None => return Box::new(future::err(Error::Url("No host name in the URL".into()))),
+    };
+    let port = request.url.port_or_known_default().expect("Bug: port unknown");
+
+    Box::new(wrap_stream(tokio_stream, domain, mode)
+             .and_then(|mut stream| {
+                 NoDelay::set_nodelay(&mut stream, true)
+                     .map(move |()| stream)
+                     .map_err(|e| e.into())
+             })
+             .and_then(move |stream| client_async(request, stream)))
 }
