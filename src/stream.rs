@@ -4,8 +4,8 @@
 //! `native_tls` or `openssl` will work as long as there is a TLS stream supporting standard
 //! `Read + Write` traits.
 
+use std::io::{Error as IoError, Read, Result as IoResult, Write};
 use std::net::SocketAddr;
-use std::io::{Read, Write, Result as IoResult, Error as IoError};
 
 use bytes::{Buf, BufMut};
 use futures::Poll;

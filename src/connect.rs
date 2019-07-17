@@ -1,19 +1,18 @@
 //! Connection helper.
 
-use std::net::SocketAddr;
 use std::io::Result as IoResult;
-
-use tokio_tcp::TcpStream;
+use std::net::SocketAddr;
 
 use futures::{future, Future};
 use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_tcp::TcpStream;
 
-use tungstenite::Error;
 use tungstenite::client::url_mode;
 use tungstenite::handshake::client::Response;
+use tungstenite::Error;
 
 use crate::stream::{NoDelay, PeerAddr};
-use crate::{WebSocketStream, Request, client_async};
+use crate::{client_async, Request, WebSocketStream};
 
 impl NoDelay for TcpStream {
     fn set_nodelay(&mut self, nodelay: bool) -> IoResult<()> {
@@ -27,19 +26,19 @@ impl PeerAddr for TcpStream {
     }
 }
 
-#[cfg(feature="tls")]
+#[cfg(feature = "tls")]
 mod encryption {
     use native_tls::TlsConnector;
     use tokio_tls::{TlsConnector as TokioTlsConnector, TlsStream};
 
+    use std::io::{Read, Result as IoResult, Write};
     use std::net::SocketAddr;
-    use std::io::{Read, Write, Result as IoResult};
 
     use futures::{future, Future};
     use tokio_io::{AsyncRead, AsyncWrite};
 
-    use tungstenite::Error;
     use tungstenite::stream::Mode;
+    use tungstenite::Error;
 
     use crate::stream::{NoDelay, PeerAddr, Stream as StreamSwitcher};
 
@@ -60,50 +59,58 @@ mod encryption {
         }
     }
 
-    pub fn wrap_stream<S>(socket: S, domain: String, mode: Mode)
-        -> Box<dyn Future<Item=AutoStream<S>, Error=Error> + Send>
+    pub fn wrap_stream<S>(
+        socket: S,
+        domain: String,
+        mode: Mode,
+    ) -> Box<dyn Future<Item = AutoStream<S>, Error = Error> + Send>
     where
         S: 'static + AsyncRead + AsyncWrite + Send,
     {
         match mode {
             Mode::Plain => Box::new(future::ok(StreamSwitcher::Plain(socket))),
-            Mode::Tls => {
-                Box::new(future::result(TlsConnector::new())
-                            .map(TokioTlsConnector::from)
-                            .and_then(move |connector| connector.connect(&domain, socket))
-                            .map(StreamSwitcher::Tls)
-                            .map_err(Error::Tls))
-            }
+            Mode::Tls => Box::new(
+                future::result(TlsConnector::new())
+                    .map(TokioTlsConnector::from)
+                    .and_then(move |connector| connector.connect(&domain, socket))
+                    .map(StreamSwitcher::Tls)
+                    .map_err(Error::Tls),
+            ),
         }
     }
 }
 
-#[cfg(feature="tls")]
+#[cfg(feature = "tls")]
 pub use self::encryption::MaybeTlsStream;
 
-#[cfg(not(feature="tls"))]
+#[cfg(not(feature = "tls"))]
 mod encryption {
     use futures::{future, Future};
     use tokio_io::{AsyncRead, AsyncWrite};
 
-    use tungstenite::Error;
     use tungstenite::stream::Mode;
+    use tungstenite::Error;
 
     pub type AutoStream<S> = S;
 
-    pub fn wrap_stream<S>(socket: S, _domain: String, mode: Mode)
-        -> Box<dyn Future<Item=AutoStream<S>, Error=Error> + Send>
+    pub fn wrap_stream<S>(
+        socket: S,
+        _domain: String,
+        mode: Mode,
+    ) -> Box<dyn Future<Item = AutoStream<S>, Error = Error> + Send>
     where
         S: 'static + AsyncRead + AsyncWrite + Send,
     {
         match mode {
             Mode::Plain => Box::new(future::ok(socket)),
-            Mode::Tls => Box::new(future::err(Error::Url("TLS support not compiled in.".into()))),
+            Mode::Tls => Box::new(future::err(Error::Url(
+                "TLS support not compiled in.".into(),
+            ))),
         }
     }
 }
 
-use self::encryption::{AutoStream, wrap_stream};
+use self::encryption::{wrap_stream, AutoStream};
 
 /// Get a domain from an URL.
 #[inline]
@@ -116,8 +123,10 @@ fn domain(request: &Request<'_>) -> Result<String, Error> {
 
 /// Creates a WebSocket handshake from a request and a stream,
 /// upgrading the stream to TLS if required.
-pub fn client_async_tls<R, S>(request: R, stream: S)
-    -> Box<dyn Future<Item=(WebSocketStream<AutoStream<S>>, Response), Error=Error> + Send>
+pub fn client_async_tls<R, S>(
+    request: R,
+    stream: S,
+) -> Box<dyn Future<Item = (WebSocketStream<AutoStream<S>>, Response), Error = Error> + Send>
 where
     R: Into<Request<'static>>,
     S: 'static + AsyncRead + AsyncWrite + NoDelay + Send,
@@ -135,20 +144,23 @@ where
         Err(e) => return Box::new(future::err(e)),
     };
 
-    Box::new(wrap_stream(stream, domain, mode)
-                .and_then(|mut stream| {
-                    NoDelay::set_nodelay(&mut stream, true)
-                        .map(move |()| stream)
-                        .map_err(|e| e.into())
-                })
-                .and_then(move |stream| client_async(request, stream)))
+    Box::new(
+        wrap_stream(stream, domain, mode)
+            .and_then(|mut stream| {
+                NoDelay::set_nodelay(&mut stream, true)
+                    .map(move |()| stream)
+                    .map_err(|e| e.into())
+            })
+            .and_then(move |stream| client_async(request, stream)),
+    )
 }
 
 /// Connect to a given URL.
-pub fn connect_async<R>(request: R)
-    -> Box<dyn Future<Item=(WebSocketStream<AutoStream<TcpStream>>, Response), Error=Error> + Send>
+pub fn connect_async<R>(
+    request: R,
+) -> Box<dyn Future<Item = (WebSocketStream<AutoStream<TcpStream>>, Response), Error = Error> + Send>
 where
-    R: Into<Request<'static>>
+    R: Into<Request<'static>>,
 {
     let request: Request<'_> = request.into();
 
@@ -156,8 +168,14 @@ where
         Ok(domain) => domain,
         Err(err) => return Box::new(future::err(err)),
     };
-    let port = request.url.port_or_known_default().expect("Bug: port unknown");
+    let port = request
+        .url
+        .port_or_known_default()
+        .expect("Bug: port unknown");
 
-    Box::new(tokio_dns::TcpStream::connect((domain.as_str(), port)).map_err(|e| e.into())
-                .and_then(move |socket| client_async_tls(request, socket)))
+    Box::new(
+        tokio_dns::TcpStream::connect((domain.as_str(), port))
+            .map_err(|e| e.into())
+            .and_then(move |socket| client_async_tls(request, socket)),
+    )
 }
