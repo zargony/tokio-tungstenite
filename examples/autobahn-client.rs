@@ -10,7 +10,7 @@ use tokio_tungstenite::{
     },
 };
 
-const AGENT: &'static str = "Tungstenite";
+const AGENT: &str = "Tungstenite";
 
 fn get_case_count() -> Result<u32> {
     let (mut socket, _) = connect(
@@ -59,7 +59,7 @@ fn main() {
 
     let total = get_case_count().unwrap();
 
-    for case in 1..(total + 1) {
+    for case in 1..=total {
         run_test(case)
     }
 
