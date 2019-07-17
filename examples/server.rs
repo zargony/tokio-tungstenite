@@ -17,11 +17,6 @@
 //! connected clients they'll all join the same room and see everyone else's
 //! messages.
 
-extern crate futures;
-extern crate tokio;
-extern crate tokio_tungstenite;
-extern crate tungstenite;
-
 use std::collections::HashMap;
 use std::env;
 use std::io::{Error, ErrorKind};

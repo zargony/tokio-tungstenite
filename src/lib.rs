@@ -15,10 +15,7 @@
     unused_imports,
     unused_import_braces)]
 
-extern crate futures;
-extern crate tokio_io;
-
-pub extern crate tungstenite;
+pub use tungstenite;
 
 #[cfg(feature="connect")]
 mod connect;

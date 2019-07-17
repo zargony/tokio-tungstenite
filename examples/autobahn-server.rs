@@ -1,10 +1,5 @@
-#[macro_use] extern crate log;
-extern crate env_logger;
-extern crate futures;
-extern crate tokio;
-extern crate tokio_tungstenite;
-
 use futures::{Future, Stream};
+use log::info;
 use tokio::net::TcpListener;
 use tokio_tungstenite::{
     accept_async,

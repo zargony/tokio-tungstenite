@@ -1,12 +1,6 @@
-#[macro_use] extern crate log;
-extern crate env_logger;
-extern crate futures;
-extern crate tokio;
-extern crate tokio_tungstenite;
-extern crate url;
-
 use url::Url;
 use futures::{Future, Stream};
+use log::{error, info};
 use tokio_tungstenite::{
     connect_async,
     tungstenite::{

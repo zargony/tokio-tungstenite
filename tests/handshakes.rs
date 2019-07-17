@@ -1,8 +1,3 @@
-extern crate futures;
-extern crate tokio_tcp;
-extern crate tokio_tungstenite;
-extern crate url;
-
 use std::io;
 
 use futures::{Future, Stream};

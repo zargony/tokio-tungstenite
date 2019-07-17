@@ -10,12 +10,6 @@
 //!
 //! You can use this example together with the `server` example.
 
-extern crate futures;
-extern crate tokio;
-extern crate tokio_tungstenite;
-extern crate tungstenite;
-extern crate url;
-
 use std::env;
 use std::io::{self, Read, Write};
 use std::thread;

@@ -1,12 +1,9 @@
 //! Connection helper.
 
-extern crate tokio_dns;
-extern crate tokio_tcp;
-
 use std::net::SocketAddr;
 use std::io::Result as IoResult;
 
-use self::tokio_tcp::TcpStream;
+use tokio_tcp::TcpStream;
 
 use futures::{future, Future};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -15,8 +12,8 @@ use tungstenite::Error;
 use tungstenite::client::url_mode;
 use tungstenite::handshake::client::Response;
 
-use stream::{NoDelay, PeerAddr};
-use super::{WebSocketStream, Request, client_async};
+use crate::stream::{NoDelay, PeerAddr};
+use crate::{WebSocketStream, Request, client_async};
 
 impl NoDelay for TcpStream {
     fn set_nodelay(&mut self, nodelay: bool) -> IoResult<()> {
@@ -32,11 +29,8 @@ impl PeerAddr for TcpStream {
 
 #[cfg(feature="tls")]
 mod encryption {
-    extern crate native_tls;
-    extern crate tokio_tls;
-
-    use self::native_tls::TlsConnector;
-    use self::tokio_tls::{TlsConnector as TokioTlsConnector, TlsStream};
+    use native_tls::TlsConnector;
+    use tokio_tls::{TlsConnector as TokioTlsConnector, TlsStream};
 
     use std::net::SocketAddr;
     use std::io::{Read, Write, Result as IoResult};
@@ -47,7 +41,7 @@ mod encryption {
     use tungstenite::Error;
     use tungstenite::stream::Mode;
 
-    use stream::{NoDelay, PeerAddr, Stream as StreamSwitcher};
+    use crate::stream::{NoDelay, PeerAddr, Stream as StreamSwitcher};
 
     /// A stream that might be protected with TLS.
     pub type MaybeTlsStream<S> = StreamSwitcher<S, TlsStream<S>>;
@@ -67,7 +61,7 @@ mod encryption {
     }
 
     pub fn wrap_stream<S>(socket: S, domain: String, mode: Mode)
-        -> Box<Future<Item=AutoStream<S>, Error=Error> + Send>
+        -> Box<dyn Future<Item=AutoStream<S>, Error=Error> + Send>
     where
         S: 'static + AsyncRead + AsyncWrite + Send,
     {
@@ -98,7 +92,7 @@ mod encryption {
     pub type AutoStream<S> = S;
 
     pub fn wrap_stream<S>(socket: S, _domain: String, mode: Mode)
-        -> Box<Future<Item=AutoStream<S>, Error=Error> + Send>
+        -> Box<dyn Future<Item=AutoStream<S>, Error=Error> + Send>
     where
         S: 'static + AsyncRead + AsyncWrite + Send,
     {
@@ -113,7 +107,7 @@ use self::encryption::{AutoStream, wrap_stream};
 
 /// Get a domain from an URL.
 #[inline]
-fn domain(request: &Request) -> Result<String, Error> {
+fn domain(request: &Request<'_>) -> Result<String, Error> {
     match request.url.host_str() {
         Some(d) => Ok(d.to_string()),
         None => Err(Error::Url("no host name in the url".into())),
@@ -123,12 +117,12 @@ fn domain(request: &Request) -> Result<String, Error> {
 /// Creates a WebSocket handshake from a request and a stream,
 /// upgrading the stream to TLS if required.
 pub fn client_async_tls<R, S>(request: R, stream: S)
-    -> Box<Future<Item=(WebSocketStream<AutoStream<S>>, Response), Error=Error> + Send>
+    -> Box<dyn Future<Item=(WebSocketStream<AutoStream<S>>, Response), Error=Error> + Send>
 where
     R: Into<Request<'static>>,
     S: 'static + AsyncRead + AsyncWrite + NoDelay + Send,
 {
-    let request: Request = request.into();
+    let request: Request<'_> = request.into();
 
     let domain = match domain(&request) {
         Ok(domain) => domain,
@@ -152,11 +146,11 @@ where
 
 /// Connect to a given URL.
 pub fn connect_async<R>(request: R)
-    -> Box<Future<Item=(WebSocketStream<AutoStream<TcpStream>>, Response), Error=Error> + Send>
+    -> Box<dyn Future<Item=(WebSocketStream<AutoStream<TcpStream>>, Response), Error=Error> + Send>
 where
     R: Into<Request<'static>>
 {
-    let request: Request = request.into();
+    let request: Request<'_> = request.into();
 
     let domain = match domain(&request) {
         Ok(domain) => domain,
